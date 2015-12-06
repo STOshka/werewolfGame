@@ -1,0 +1,14 @@
+Things left to implement (in priority order)
+
+GUI (buttons) for game setup and game actions
+Port forwarding readme (or hamachi)
+Default roles
+Images for roles
+Figure out how to synchronize timers better
+clean up code
+Send win/lose message to specific players
+Add roles from expansion (DAYBREAK)
+Random roles feature
+Error Handling
+Tests?
+

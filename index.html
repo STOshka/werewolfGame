@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial; }
+      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #eee; }
+    </style>
+  </head>
+  <body>
+    <div>Time remaining <span id="time">00:30</span> minutes!</div>
+    <ul id="messages"></ul>
+    <form id="message-form" action="">
+      <input id="message-input" placeholder="Chat messages" autocomplete="off" /><button>Send</button>
+    </form>
+	
+	<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+	<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+	<script src="jquery.watermarkinput.js" type="text/javascript"></script>
+	<script>
+	  var socket = io();
+	  
+	  <!-- submit message -->
+	  $('#message-form').submit(function(){
+		socket.emit('chat message', $('#message-input').val());
+		$('#message-input').val('');
+		return false;
+	  });
+	  	  
+	  socket.on('chat message', function(msg){
+		$('#messages').append($('<li>').text(msg));
+	  });
+	  
+	  socket.on('start timer', function(initialTime){
+		display = document.querySelector('#time');
+		startTimer(initialTime, display);
+	  });
+	  
+	//copied and pasted from http://jsfiddle.net/wr1ua0db/17/
+	//may be a second or so off
+	function startTimer(duration, display) {
+		var timer = duration, minutes, seconds;
+		var mythingy = setInterval(function () {
+			minutes = parseInt(timer / 60, 10)
+			seconds = parseInt(timer % 60, 10);
+
+			minutes = minutes < 10 ? "0" + minutes : minutes;
+			seconds = seconds < 10 ? "0" + seconds : seconds;
+
+			display.textContent = minutes + ":" + seconds;
+
+			if (--timer < 0) {
+				clearInterval(mythingy);
+			}
+		}, 1000);
+	}
+	</script>
+	
+  </body>
+</html>
