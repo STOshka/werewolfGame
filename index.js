@@ -43,6 +43,10 @@ io.on('connection', function(socket){
   var socketId = socket.id;
 
   players.push(new playerState(socketId));
+  
+  //push the initial set of buttons
+  
+  //io.sockets.connected[socketId].emit('update gamebuttons', 'test');
 	
   socket.on('chat message', function(msg){
     processChatMessage(msg, socketId);
@@ -54,6 +58,9 @@ io.on('connection', function(socket){
   });  
   
 });
+
+//todo i know this is bad practice. Ask a javascript person how to do this better
+var setupHTML = "";
 
 http.listen(3000, function(){
   console.log('listening on *:3000');
@@ -100,9 +107,7 @@ function setupGame() {
 		io.emit('chat message', 'not enough players!')
 		return;
 	}
-	console.log(gameState.roles);
 	shuffle(gameState.roles);
-	console.log(gameState.roles);
 	
 	gameState.middleCards = gameState.roles.slice(0,3)
 	for(var i = 0; i < players.length; i++) {
@@ -126,7 +131,7 @@ function startNight(){
 	for(var i = 0; i < players.length; i++) {
 		var currentPlayerIndex = i;
 		var currentPlayer = players[currentPlayerIndex];
-		
+		io.sockets.connected[currentPlayer.playerSocket].emit('clear gamebuttons');
 		var currentPlayerInitialRole = currentPlayer.playerInitialRole;
 		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'you are a '.concat(currentPlayerInitialRole));
 		if(currentPlayerInitialRole.localeCompare(roles.WEREWOLF) == 0) {
@@ -136,7 +141,8 @@ function startNight(){
 				console.log('error state. there should be at least one werewolf');
 			}
 			else if(werewolves.length == 1) {
-				io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are alone. Type werewolf then [0 1 2] to view one of the middle cards (werewolf 0).');
+				io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are alone. Type werewolf middle then [0 1 2] to view one of the middle cards (werewolf middle 0).');
+				io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'werewolf', '1');
 			}
 			else {
 				currentPlayer.playerAction = new playerAction(playerActions.VIEW, 'player', werewolves);
@@ -151,18 +157,23 @@ function startNight(){
 		
 		else if(currentPlayerInitialRole.localeCompare(roles.SEER) == 0) {
 			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with seer. Then choose one other persons name (seer happy-turtle) or type "seer middle [0 1 2] [0 1 2]" (seer middle 2 1). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'seer', '2');
+			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'seer', '1', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.ROBBER) == 0) {
 			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with robber. Then type none (robber none) or choose one other persons name (robber happy-turtle). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'robber', '1', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.TROUBLEMAKER) == 0) {
 			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with troublemaker. Then type none (troublemaker none) or choose two other persons names (troublemaker happy-turtle sad-panda). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'troublemaker', '2', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.DRUNK) == 0) {
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Type drunk then [0 1 2] (drunk 2');
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Type drunk then [0 1 2] (drunk 2)');
+			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'drunk', '1');
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.INSOMNIAC) == 0) {
@@ -221,8 +232,11 @@ function finishNight() {
 	
 	gamePhase = gamePhases.DAY;
 	io.emit('start timer', gameState.timer);
+	io.emit('clear gamebuttons');
+	io.emit('update gamebuttons daytime', getAllPlayerNames().join(' '));
 	var gameTimeInMilliseconds = (gameState.timer + 5) * 1000 ;
 	setTimeout(function() {finishDay();}, gameTimeInMilliseconds);
+	
 }
 
 function finishDay() {
@@ -378,8 +392,8 @@ function processChatMessage(msg, socketId) {
 		
 		var outputMessage;
 		var middleIndex = [];
-		middleIndex[0] = messageParts[1];
-		if(gameState.middleCards[messageParts[1]].localeCompare(roles.WEREWOLF) == 0) {
+		middleIndex[0] = messageParts[2];
+		if(gameState.middleCards[messageParts[2]].localeCompare(roles.WEREWOLF) == 0) {
 			console.log('werewolf saw a werewolf');
 			middleIndex[0] = (middleIndex + 1) % 3;
 			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'wow you picked a werewolf. look at this card instead.');
@@ -464,7 +478,7 @@ function processChatMessage(msg, socketId) {
 			outputMessage = 'You will do nothing';
 		}
 		else {	
-			if(findPlayerIndexByName(messageParts[1]) == currentPlayerIndex) {
+			if(findPlayerIndexByName(messageParts[1]) == currentPlayerIndex || findPlayerIndexByName(messageParts[2]) == currentPlayerIndex) {
 				outputMessage = 'please don\'t troublemake at yourself';
 			}
 			else {
@@ -514,8 +528,13 @@ function processChatMessage(msg, socketId) {
 		if(votedPlayerIndex < 0) {
 			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You typed in a name wrong. Try again.');			
 		}
-		currentPlayer.playerCurrentVote = votedPlayerIndex;
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are now voting for '.concat(players[votedPlayerIndex].playerUserName));
+		if(votedPlayerIndex == currentPlayerIndex) {
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Please don\'t vote for yourself');
+		}
+		else {		
+			currentPlayer.playerCurrentVote = votedPlayerIndex;
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are now voting for '.concat(players[votedPlayerIndex].playerUserName));
+		}
 	}
 	
 	else {

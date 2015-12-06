@@ -1,14 +1,17 @@
 Things left to implement (in priority order)
 
-GUI (buttons) for game setup and game actions
 Port forwarding readme (or hamachi)
+restart game without refreshing windows
 Default roles
 Images for roles
 Figure out how to synchronize timers better
+use a javascript library to make buttons prettier
+werewolf can always see middle werewolf bug
 clean up code
 Send win/lose message to specific players
 Add roles from expansion (DAYBREAK)
 Random roles feature
+Reconnect feature
 Error Handling
 Tests?
 
