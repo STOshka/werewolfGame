@@ -4,25 +4,58 @@
     <title>Socket.IO chat</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font: 13px Helvetica, Arial; }
-      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      html, body { font: 13px Helvetica, Arial; height:100%; }
+      #message-form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
       form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
       form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages { list-style-type: none; margin: 0; padding: 0; overflow: scroll;}
       #messages li { padding: 5px 10px; }
       #messages li:nth-child(odd) { background: #eee; }
+	  #game-window {height: 90%; background: blue; display:inline;}
+	  #chat-window {height: inherit; width: 80%; float: left; background:yellow;}
+	  #game-buttons {height: inherit; width:20%; float: right; background:green; padding:10px;}
+	  .role-button {width: 10%;}
     </style>
   </head>
   <body>
+  
     <div>Time remaining <span id="time">00:30</span> minutes!</div>
-    <ul id="messages"></ul>
-    <form id="message-form" action="">
-      <input id="message-input" placeholder="Chat messages" autocomplete="off" /><button>Send</button>
-    </form>
-	
+	<div id="game-window">
+		<div id="chat-window">
+			<ul id="messages"></ul>
+			<form id="message-form" action="">
+			  <input id="message-input" placeholder="Chat messages" autocomplete="off" /><button>Send</button>
+			</form>
+		</div>
+		<div id="game-buttons">
+			<div id="username-setter">
+			  <input type="text" id="username-setter-name">
+			  <button type="button" id="username-setter-name" onClick="submitUsername()">Set your Username</button>
+			</div>
+			<div id="game-timer">
+			  <input type="text" id="game-timer-time">
+			  <button type="button" id="game-timer-submit" onClick="submitGameTime()">Set Game Time (seconds)</button>
+			</div>
+				 <input class="role-button" type="checkbox" value="werewolf" checked> Werewolf <br>
+				 <input class="role-button" type="checkbox" value="werewolf" checked> Werewolf <br>
+				 <input class="role-button" type="checkbox" value="seer" checked> Seer <br>
+				 <input class="role-button" type="checkbox" value="robber" checked> Robber <br>
+				 <input class="role-button" type="checkbox" value="troublemaker" checked> Troublemaker <br>
+				 <input class="role-button" type="checkbox" value="insomniac" checked> Insomniac <br>
+				 <input class="role-button" type="checkbox" value="tanner" > Tanner <br>
+				 <input class="role-button" type="checkbox" value="hunter" > Hunter <br>
+				 <input class="role-button" type="checkbox" value="mason" > Mason <br>
+				 <input class="role-button" type="checkbox" value="mason" > Mason <br>
+				 <input class="role-button" type="checkbox" value="villager" > Villager <br>
+				 <input class="role-button" type="checkbox" value="villager" > Villager <br>
+				<input type="button" onClick="submitRoles()" value="Set Roles">
+			<div id="game-setup">
+			  <button type="button" id="game-setup-button" onClick="setupGame()">Setup the game</button>
+			</div>
+		</div>
+	</div>
 	<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
 	<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
-	<script src="jquery.watermarkinput.js" type="text/javascript"></script>
 	<script>
 	  var socket = io();
 	  
@@ -42,6 +75,123 @@
 		startTimer(initialTime, display);
 	  });
 	  
+	  socket.on('clear gamebuttons', function() {
+		$('#game-buttons').empty();
+	  });
+	  
+	  socket.on('update gamebuttons seemiddle', function(role, numCardsToSee) {
+		showSeeMiddleCardsPanel(role, numCardsToSee);
+	  });
+	  
+	  socket.on('update gamebuttons seeplayers', function(role, numCardsToSee, playerNames) {
+		showSeePlayersPanel(role, numCardsToSee, playerNames);
+	  });
+	  
+	  socket.on('update gamebuttons daytime', function(playerNames) {
+		showVotePlayersPanel(playerNames);
+	  });
+
+	  //todo should these live serverside or client side
+	function submitRoles() {
+		var inputRoles = findCheckedBoxesByClassAndReturnSpaceSeparatedString('role-button');
+		var setRoleString = 'roles '.concat(inputRoles);
+		socket.emit('chat message', setRoleString);
+	}
+	
+	function submitGameTime() {
+		var gameTimeInSeconds = $('#game-timer-time').val();
+		var setGameTimeString = 'timer '.concat(gameTimeInSeconds);
+		socket.emit('chat message', setGameTimeString);
+	}	
+	
+	function submitUsername() {
+		var username = $('#username-setter-name').val();
+		var setUsernameString = 'username '.concat(username);
+		socket.emit('chat message', setUsernameString);
+	}
+	
+	function setupGame() {
+		var setupGameString = 'setupgame';
+		socket.emit('chat message', setupGameString);
+	}	
+
+	function showVotePlayersPanel(playerNames) {
+		var playerNamesArray = playerNames.split(' ');
+	
+		$('#game-buttons').append('Click a button to secretly vote for a player</br>');
+		for(var i = 0; i < playerNamesArray.length; i ++) {
+			var $input = $('<input class="player-card" type="button" onClick=votePlayer("'+playerNamesArray[i]+'") value="'+playerNamesArray[i]+'"/> </br>');
+			$('#game-buttons').append($input);
+		}		
+	}
+	
+	function votePlayer(playerName) {
+		socket.emit('chat message', 'vote '.concat(playerName));
+	}
+	
+	function showSeeMiddleCardsPanel(role, numCardsToSee) {
+		var $input1 = $('<input class="middle-card" type="checkbox" value="0" checked/> Middle Card 0</br>');
+		var $input2 = $('<input class="middle-card" type="checkbox" value="1" /> Middle Card 1</br>');
+		var $input3 = $('<input class="middle-card" type="checkbox" value="2" /> Middle Card 2</br>');
+		var $input4 = $('<input type="button" onClick="submitMiddleCardsToSee(\''+role+'\',\''+numCardsToSee+'\')" value="See These Cards"/></br>');
+		
+		$('#game-buttons').append($input1);
+		$('#game-buttons').append($input2);
+		$('#game-buttons').append($input3);
+		$('#game-buttons').append($input4);
+	}
+	
+	function showSeePlayersPanel(role, numCardsToSee, playerNames) {
+		var playerNamesArray = playerNames.split(' ');
+	
+		for(var i = 0; i < playerNamesArray.length; i ++) {
+			var $input = $('<input class="player-card" type="checkbox" value="'+playerNamesArray[i]+'" /> '+playerNamesArray[i]+'</br>');
+			$('#game-buttons').append($input);
+		}
+		var $inputButton = $('<input type="button" onClick="submitPlayerCardsToSee(\''+role+'\',\''+numCardsToSee+'\')" value="Act on these cards"/></br>');
+		
+		var $doNothingButton = $('<input type="button" onClick="submitDoNothing(\''+role+'\')" value="DoNothing"/></br>');
+		
+		$('#game-buttons').append($inputButton);
+		$('#game-buttons').append($doNothingButton);
+	}
+	
+	function submitMiddleCardsToSee(role, numCardsToSee) {
+		var checkedMiddleCards = findCheckedBoxesByClassAndReturnSpaceSeparatedString('middle-card');
+		if(checkedMiddleCards.split(' ').length != numCardsToSee) {
+			alert("wrong number of cards selected.");
+		}
+		else {
+			var checkMiddleCardString = role.concat(' middle ', checkedMiddleCards);
+			socket.emit('chat message', checkMiddleCardString);
+		}
+		
+	}	
+	
+	function submitPlayerCardsToSee(role, numCardsToSee) {
+		var checkedMiddleCards = findCheckedBoxesByClassAndReturnSpaceSeparatedString('player-card');
+		if(checkedMiddleCards.split(' ').length != numCardsToSee) {
+			alert("wrong number of cards selected.");
+		}
+		else {
+			var checkPlayerCardString = role.concat(' ', checkedMiddleCards);
+			socket.emit('chat message', checkPlayerCardString);
+		}
+		
+	}
+	
+	function submitDoNothing(role) {
+		var doNothingString = role.concat(' none');
+		socket.emit('chat message', doNothingString);
+	}
+	
+	function findCheckedBoxesByClassAndReturnSpaceSeparatedString(className) {
+		var checked = $('.'.concat(className,':checked')).map(function() {
+				return this.value;
+			}).get();
+		return checked.join(' ');
+	}
+	
 	//copied and pasted from http://jsfiddle.net/wr1ua0db/17/
 	//may be a second or so off
 	function startTimer(duration, display) {
@@ -59,8 +209,10 @@
 				clearInterval(mythingy);
 			}
 		}, 1000);
+	
 	}
 	</script>
+  
 	
   </body>
 </html>
