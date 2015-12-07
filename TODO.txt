@@ -1,17 +1,28 @@
 Things left to implement (in priority order)
 
+investigate tanner bug
+learn to kick players... investigate players not leaving issue.
+vote to vote now (everyone)
+endstate print actions
+autoscroll/ chat from top
+game text in different font
+endstate text/resolve winner
+Send win/lose message to specific players
+
+clean up text to mention new ui buttons
 Port forwarding readme (or hamachi)
 restart game without refreshing windows
 Default roles
 Images for roles
+default vote for the right
+
 Figure out how to synchronize timers better
 use a javascript library to make buttons prettier
 werewolf can always see middle werewolf bug
 clean up code
-Send win/lose message to specific players
 Add roles from expansion (DAYBREAK)
 Random roles feature
 Reconnect feature
 Error Handling
 Tests?
-
+mod priveledges
