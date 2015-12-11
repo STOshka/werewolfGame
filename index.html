@@ -11,8 +11,12 @@
       #messages { list-style-type: none; margin: 0; padding: 0; overflow: scroll;}
       #messages li { padding: 5px 10px; }
       #messages li:nth-child(odd) { background: #eee; }
+      #game-messages { list-style-type: none; margin: 0; padding: 0; overflow: scroll;}
+      #game-messages li { padding: 5px 10px; }
+      #game-messages li:nth-child(odd) { background: lightblue; }
 	  #game-window {height: 90%; background: blue; display:inline;}
-	  #chat-window {height: inherit; width: 80%; float: left; background:yellow;}
+	  #chat-window {height: inherit; width: 60%; float: left; background:yellow;}
+	  #game-notifications {height: inherit; width: 20%; float: right; background: AliceBlue;}
 	  #game-buttons {height: inherit; width:20%; float: right; background:green; padding:10px;}
 	  .role-button {width: 10%;}
     </style>
@@ -53,6 +57,9 @@
 			  <button type="button" id="game-setup-button" onClick="setupGame()">Setup the game</button>
 			</div>
 		</div>
+		<div id="game-notifications">
+			<ul id="game-messages"></ul>
+		</div>
 	</div>
 	<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
 	<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
@@ -68,6 +75,10 @@
 	  	  
 	  socket.on('chat message', function(msg){
 		$('#messages').append($('<li>').text(msg));
+	  });
+
+	  socket.on('chat game message', function(msg){
+	  	$('#game-messages').append($('<li>').text(msg));
 	  });
 	  
 	  socket.on('start timer', function(initialTime){

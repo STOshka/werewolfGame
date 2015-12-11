@@ -79,7 +79,7 @@ function playerState(socket) {
 	this.playerCurrentRole = roles.VILLAGER;
 	this.playerAction;
 	this.playerTokens = [];
-	this.playerCurrentVote = 1;
+	this.playerCurrentVote = players.length - 1;
 };
 
 function gameState() {
@@ -101,10 +101,10 @@ function playerAction(inputAction, inputTargetGroup, inputTarget) {
 //Shuffles and assigns roles
 function setupGame() {
 	if(!(gamePhase == gamePhases.SETUP || gamePhase == gamePhases.ENDED)) {
-		io.emit('chat message', 'Game is not in the correct state to setup the game');
+		io.emit('chat game message', 'Game is not in the correct state to setup the game');
 	}
 	if(gameState.roles.length != players.length + 3) {
-		io.emit('chat message', 'not enough players!')
+		io.emit('chat game message', 'not enough players! ' + gameState.roles.length + ' roles and ' + players.length + ' players.')
 		return;
 	}
 	shuffle(gameState.roles);
@@ -123,7 +123,7 @@ function setupGame() {
 //Privately messages each player their role and action
 function startNight(){
 	if(gamePhase != gamePhases.SETUP) {
-		io.emit('chat message', 'Game is not in the correct state to start the night');
+		io.emit('chat game message', 'Game is not in the correct state to start the night');
 	}
 	
 	gamePhase = gamePhases.NIGHT;
@@ -133,46 +133,47 @@ function startNight(){
 		var currentPlayer = players[currentPlayerIndex];
 		io.sockets.connected[currentPlayer.playerSocket].emit('clear gamebuttons');
 		var currentPlayerInitialRole = currentPlayer.playerInitialRole;
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'you are a '.concat(currentPlayerInitialRole));
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'you are a '.concat(currentPlayerInitialRole));
 		if(currentPlayerInitialRole.localeCompare(roles.WEREWOLF) == 0) {
-			var werewolves = findPlayerIndexByRole(roles.WEREWOLF);
+			var werewolves = findPlayerIndexByInitialRole(roles.WEREWOLF);
 			var werewolvesNames = [];
 			if(werewolves.length == 0) {
 				console.log('error state. there should be at least one werewolf');
 			}
 			else if(werewolves.length == 1) {
-				io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are alone. Type werewolf middle then [0 1 2] to view one of the middle cards (werewolf middle 0).');
+				io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You are alone. Look at one of the middle cards (see right panel).');
 				io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'werewolf', '1');
 			}
 			else {
 				currentPlayer.playerAction = new playerAction(playerActions.VIEW, 'player', werewolves);
-				io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are a pack.');
+				io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You are a pack. You will see the other werewolf at the end of the timer.');
 			}
 		}
 		
 		else if(currentPlayerInitialRole.localeCompare(roles.MASON) == 0) {
-			var masons = findPlayerIndexByRole(roles.MASON);
+			var masons = findPlayerIndexByInitialRole(roles.MASON);
 			currentPlayer.playerAction = new playerAction(playerActions.VIEW, 'player', masons);
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You will see the other mason at the end of the timer.');
 		}
 		
 		else if(currentPlayerInitialRole.localeCompare(roles.SEER) == 0) {
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with seer. Then choose one other persons name (seer happy-turtle) or type "seer middle [0 1 2] [0 1 2]" (seer middle 2 1). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'Look at two cards in the middle, or one card from another player (see right panel).');
 			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'seer', '2');
 			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'seer', '1', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.ROBBER) == 0) {
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with robber. Then type none (robber none) or choose one other persons name (robber happy-turtle). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'Choose one person to rob (see right panel).');
 			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'robber', '1', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.TROUBLEMAKER) == 0) {
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Start your message with troublemaker. Then type none (troublemaker none) or choose two other persons names (troublemaker happy-turtle sad-panda). You are '.concat(currentPlayer.playerUserName, ' Possible names are: ', getAllPlayerNames()));
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'Choose two people to swap roles (see right panel).');
 			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seeplayers', 'troublemaker', '2', getAllPlayerNames().join(' '));
 		}
 		
 		else if(currentPlayer.playerInitialRole.localeCompare(roles.DRUNK) == 0) {
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'Type drunk then [0 1 2] (drunk 2)');
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'Choose one middle card to take (see right panel).');
 			io.sockets.connected[currentPlayer.playerSocket].emit('update gamebuttons seemiddle', 'drunk', '1');
 		}
 		
@@ -193,13 +194,13 @@ function startNight(){
 
 //defines how the night is resolved
 function finishNight() {
-	var werewolves = findPlayerIndexByRole(roles.WEREWOLF);
-	var masons = findPlayerIndexByRole(roles.MASON);
-	var seer = findPlayerIndexByRole(roles.SEER);
-	var robber = findPlayerIndexByRole(roles.ROBBER);
-	var troublemaker = findPlayerIndexByRole(roles.TROUBLEMAKER);
-	var drunk = findPlayerIndexByRole(roles.DRUNK);
-	var insomniac = findPlayerIndexByRole(roles.INSOMNIAC);
+	var werewolves = findPlayerIndexByInitialRole(roles.WEREWOLF);
+	var masons = findPlayerIndexByInitialRole(roles.MASON);
+	var seer = findPlayerIndexByInitialRole(roles.SEER);
+	var robber = findPlayerIndexByInitialRole(roles.ROBBER);
+	var troublemaker = findPlayerIndexByInitialRole(roles.TROUBLEMAKER);
+	var drunk = findPlayerIndexByInitialRole(roles.DRUNK);
+	var insomniac = findPlayerIndexByInitialRole(roles.INSOMNIAC);
 
 	for(var i = 0; i < werewolves.length; i++) {
 		performAction(players[werewolves[i]]);
@@ -240,15 +241,76 @@ function finishNight() {
 }
 
 function finishDay() {
-	var endStateString = ''; 
+	var votedPlayers = []; 
 	for(var i = 0; i < players.length; i++) {
 		var currentPlayer = players[i];
+		var endStateString = ''; 
 		endStateString = endStateString.concat(currentPlayer.playerUserName, ' started out as a ', currentPlayer.playerInitialRole);
 		endStateString = endStateString.concat(', ended as a ', currentPlayer.playerCurrentRole);
-		endStateString = endStateString.concat(' and voted for ', players[currentPlayer.playerCurrentVote].playerUserName, '\n');
+		if(currentPlayer.playerCurrentVote < 0) {
+			currentPlayer.playerCurrentVote += players.length;
+		}
+		var votedPlayer = currentPlayer.playerCurrentVote;
+		endStateString = endStateString.concat(' and voted for ', players[votedPlayer].playerUserName, '.');
+		io.emit('chat game message', endStateString);
+		
+		if(!votedPlayers[votedPlayer]) {
+			votedPlayers[votedPlayer] = 0;
+		}
+		votedPlayers[votedPlayer]++;
 	}
-	io.emit('chat message', endStateString);
+	printWinners(votedPlayers);
+
 	gamePhase = gamePhases.SETUP;
+}
+
+function printWinners(votedPlayers) {
+	//Count the highest number voted. If one, nobody died.
+	var max = 0;
+	for(var i = 0; i < votedPlayers.length; i++) {
+		if(votedPlayers[i] > max) {
+			max = votedPlayers[i];
+		}
+	}
+	//If one, nobody died. Town wins if no werewolves.
+	var werewolves = findPlayerIndexByCurrentRole(roles.WEREWOLF);
+	if(max == 1) {
+		if(werewolves.length > 0) {
+			io.emit('chat game message', 'Nobody died but there were werewolves. Werewolves win!');
+		}
+		else {
+			io.emit('chat game message', 'Nobody died, and there were no werewolves. Town wins!');
+		}
+	}
+	else {
+		//Also kill hunter's target if they were killed.
+		var hunter = findPlayerIndexByCurrentRole(roles.HUNTER);
+		for(var i = 0; i < hunter.length; i++) {
+			if(votedPlayers[hunter[i]] == max) {
+				votedPlayers[players[hunter[i]].playerCurrentVote] = max;
+			}
+		}
+		
+		//If tanner dies, tanner wins.
+		var tanner = findPlayerIndexByCurrentRole(roles.TANNER);
+		for(var i = 0; i < tanner.length; i++) {
+			if(votedPlayers[tanner[i]] == max) {
+				io.emit('chat game message', 'Tanner died. ' + players[tanner[i]].playerUserName + ' wins!');
+				return;
+			}
+		}
+
+		//If a werewolf died, town wins.
+		for(var i = 0; i < werewolves.length; i++) {
+			if(votedPlayers[werewolves[i]] == max) {
+				io.emit('chat game message', 'Werewolf (' + players[werewolves[i]].playerUserName + ') died. Town wins!');
+				return;
+			}
+		}
+
+		//Otherwise, werewolves win.
+		io.emit('chat game message', 'No werewolves died. Werewolves win.');
+	}
 }
 
 function performAction(currentPlayer) {
@@ -268,7 +330,7 @@ function performAction(currentPlayer) {
 				outputMessage = outputMessage.concat('The ', playerAction.target[i], ' middle card is a ', targetCard, '. ');
 			}		
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);
 	}
 	else if(playerAction.action.localeCompare(playerActions.SWAP) == 0) {
 		var outputMessage = '';
@@ -300,7 +362,7 @@ function performAction(currentPlayer) {
 			currentPlayer.playerCurrentRole = tempRole;
 			outputMessage = outputMessage.concat('You swapped with the ', playerAction.target[0], ' middle card.');
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);
 	}
 	//ROBBER
 	else if(playerAction.action.localeCompare(playerActions.VIEWANDSWAP) == 0) {
@@ -330,10 +392,10 @@ function performAction(currentPlayer) {
 			currentPlayer.playerCurrentRole = tempRole;
 			outputMessage = outputMessage.concat('You swapped with the ', playerAction.target[0], ' middle card. You are now a ', currentPlayer.playerCurrentRole, '. ');
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);
 	}
 	else if(playerAction.action.localeCompare(playerActions.DONOTHING) == 0) {
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You did nothing');
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You did nothing');
 	}
 }
 
@@ -388,18 +450,18 @@ function processChatMessage(msg, socketId) {
 			return;
 		}
 		
-		var numWerewolves = findPlayerIndexByRole(roles.WEREWOLF).length;
+		var numWerewolves = findPlayerIndexByInitialRole(roles.WEREWOLF).length;
 		
 		var outputMessage;
 		var middleIndex = [];
 		middleIndex[0] = messageParts[2];
 		if(gameState.middleCards[messageParts[2]].localeCompare(roles.WEREWOLF) == 0) {
 			console.log('werewolf saw a werewolf');
-			middleIndex[0] = (middleIndex + 1) % 3;
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'wow you picked a werewolf. look at this card instead.');
+			middleIndex[0] = (middleIndex[0] + 1) % 3;
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'wow you picked a werewolf. look at this card instead.');
 		}
 		currentPlayer.playerAction = new playerAction(playerActions.VIEW, 'middle', middleIndex);
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are going to see this middle card '.concat(middleIndex[0]));
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You are going to see this middle card '.concat(middleIndex[0]));
 	}
 	
 	else if(command.localeCompare('seer') == 0) {
@@ -428,7 +490,7 @@ function processChatMessage(msg, socketId) {
 				outputMessage = 'you are going to see player '.concat(messageParts[1]);
 			}
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);
 	}
 	
 	else if(command.localeCompare('robber') == 0) {
@@ -457,7 +519,7 @@ function processChatMessage(msg, socketId) {
 				outputMessage = 'you will swap with player '.concat(messageParts[1]);
 			}
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);		
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);		
 	}
 	
 	else if(command.localeCompare('troublemaker') == 0) {
@@ -486,7 +548,7 @@ function processChatMessage(msg, socketId) {
 				outputMessage = 'You are going to swap '.concat(messageParts[1], ' and ', messageParts[2]);
 			}
 		}
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', outputMessage);
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', outputMessage);
 	}
 	
 	else if(command.localeCompare('drunk') == 0) {
@@ -503,7 +565,7 @@ function processChatMessage(msg, socketId) {
 		
 		currentPlayer.playerAction = new playerAction(playerActions.SWAP, 'middle', [messageParts[1]]);			
 		
-		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You swapped with the middle card in the '.concat(messageParts[1], 'position'));
+		io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You game swapped with the middle card in the '.concat(messageParts[1], 'position'));
 	}
 	
 	//player chat commands
@@ -533,7 +595,7 @@ function processChatMessage(msg, socketId) {
 		}
 		else {		
 			currentPlayer.playerCurrentVote = votedPlayerIndex;
-			io.sockets.connected[currentPlayer.playerSocket].emit('chat message', 'You are now voting for '.concat(players[votedPlayerIndex].playerUserName));
+			io.sockets.connected[currentPlayer.playerSocket].emit('chat game message', 'You are now voting for '.concat(players[votedPlayerIndex].playerUserName));
 		}
 	}
 	
@@ -575,10 +637,20 @@ function shuffle(array) {
   return array;
 }
 
-function findPlayerIndexByRole(role) {
+function findPlayerIndexByInitialRole(role) {
 	var hits = [];
 	for(var i = 0; i < players.length; i++) {
 		if(players[i].playerInitialRole == role) {
+			hits.push(i);
+		}
+	}
+	return hits;
+}
+
+function findPlayerIndexByCurrentRole(role) {
+	var hits = [];
+	for(var i = 0; i < players.length; i++) {
+		if(players[i].playerCurrentRole == role) {
 			hits.push(i);
 		}
 	}
